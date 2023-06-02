@@ -1,18 +1,39 @@
+const axios = require('axios');
 const express = require('express');
-let axios = require('axios');
-var app = express();
+const ExpressError = require("./expressError")
+const app = express();
 
-app.post('/', function(req, res, next) {
+app.use(express.json());
+
+app.post('/', async function(req, res, next) {
   try {
-    let results = req.body.developers.map(async d => {
-      return await axios.get(`https://api.github.com/users/${d}`);
-    });
-    let out = results.map(r => ({ name: r.data.name, bio: r.data.bio }));
+    let results = await Promise.all(
+      req.body.developers.map(async (d) => {
+        let response = await axios.get(`https://api.github.com/users/${d}`);
+        return response.data;
+      })
+    );
+    let out = results.map(r => ({ bio: r.bio, name: r.name }));
 
     return res.send(JSON.stringify(out));
-  } catch {
+  } catch(err) {
     next(err);
   }
 });
 
-app.listen(3000);
+// This is a 404 handler
+app.use((req, res, next) => {
+	const e = new ExpressError("Page Not Found", 404)
+	next(e)
+	})
+
+// This is a genereal error handler
+app.use(function (err, req, res, next) { 
+	let status = err.status || 500;
+	let message = err.msg;
+	  return res.status(status).json({
+	    error: { message, status }
+	  });
+	});
+
+module.exports = app; 
